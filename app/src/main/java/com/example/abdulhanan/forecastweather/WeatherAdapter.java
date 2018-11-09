@@ -49,6 +49,7 @@ public class WeatherAdapter extends RecyclerView.Adapter<WeatherAdapter.WeatherV
         Picasso.get()
                 .load("http://openweathermap.org/img/w/" + weather.getImg() + ".png")
                 .into(weatherViewHolder.imageview);
+
     }
 
     @Override

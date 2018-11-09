@@ -7,10 +7,12 @@ import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.AnimationDrawable;
 import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
+import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
@@ -22,6 +24,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -30,6 +33,7 @@ import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
+import com.example.abdulhanan.forecastweather.data.ForcastList;
 import com.example.abdulhanan.forecastweather.database.WeatherDao;
 import com.example.abdulhanan.forecastweather.database.WeatherDatabase;
 import com.example.abdulhanan.forecastweather.database.WeatherEntry;
@@ -50,6 +54,11 @@ import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
+
+import retrofit2.Call;
+import retrofit2.Callback;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -60,9 +69,11 @@ public class MainActivity extends AppCompatActivity {
     private List<WeatherEntry> weatherList;
     WeatherAdapter adapter = new WeatherAdapter();
 
-    static String WEATHER_KEY = "2675d734e1064430ee393c9693e122b5";
+    private static final String WEATHER_KEY = "2675d734e1064430ee393c9693e122b5";
+    public static String cityname = "islamabad";
+    public static final String metric = "metric";
 
-    static String cityname = "London";
+    //static String WEATHER_KEY = "2675d734e1064430ee393c9693e122b5";
 
 
     static public String day,desc;
@@ -72,10 +83,23 @@ public class MainActivity extends AppCompatActivity {
     MaterialSearchView materialSearchView;
     TextView name;
 
+    RelativeLayout rel;
+    AnimationDrawable animationDrawable;
+    ViewPager viewPager;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+/*
+        rel = findViewById(R.id.rel_anim);
+        animationDrawable = (AnimationDrawable) rel.getBackground();
+        animationDrawable.setEnterFadeDuration(2000);
+        animationDrawable.setExitFadeDuration(1000);
+        animationDrawable.start();
+
+*/
+
 
 
         btn = findViewById(R.id.btn);
@@ -83,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
         btn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                download(cityname);
+                download(cityname,metric,WEATHER_KEY);
                 //Toast.makeText(MainActivity.this,"updated",Toast.LENGTH_LONG).show();
             }
         });
@@ -114,7 +138,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public boolean onQueryTextSubmit(String query) {
                 cityname =query.toUpperCase();
-                download(cityname);
+                download(cityname,metric,WEATHER_KEY);
                 return false;
             }
 
@@ -150,10 +174,19 @@ public class MainActivity extends AppCompatActivity {
         );
 
 
-        download(cityname);
+        download(cityname,metric,WEATHER_KEY);
 
+        viewPager = findViewById(R.id.viewpager);
+
+        ViewPagerAdapter viewPagerAdapter = new ViewPagerAdapter(this);
+        viewPager.setAdapter(viewPagerAdapter);
+
+        Timer timer = new Timer();
+        timer.scheduleAtFixedRate(new MyTimerTask(),3000,10000);
 
     }
+
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -163,7 +196,88 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
+    public void  download(String city, String method, String key){
 
+        if (Funtionality.isNetworkAvailable(this)){
+            weatherViewModel.deleteAllWeather();
+            name.setText(cityname);
+            wdownload(city,method,key);
+        } else {
+            Toast.makeText(this,"No Connection",Toast.LENGTH_LONG).show();
+        }
+
+    }
+
+    public void wdownload(String name, String metric, String apikey){
+        Call<ForcastList> forcastList = Api.getPostService().getPostByName(name,metric,apikey);
+        forcastList.enqueue(new Callback<ForcastList>() {
+            @Override
+            public void onResponse(Call<ForcastList> call, retrofit2.Response<ForcastList> response) {
+                Log.d("code", String.valueOf(response));
+
+                ForcastList forcast = response.body();
+                if(forcast!=null) {
+
+                    DateFormat d = DateFormat.getDateInstance();
+
+                    String date = d.format(new Date(forcast.getList().get(0).getDt().longValue()*1000));
+                    String desc = forcast.getList().get(0).getWeather().get(0).getDescription();
+                    String temp = (String.format("%.0f",forcast.getList().get(0).getMain().getTemp().doubleValue())+ "°");
+                    String icon = forcast.getList().get(0).getWeather().get(0).getIcon();
+
+                    WeatherEntry weatherEntry = new WeatherEntry(date,desc,temp,icon);
+                    weatherViewModel.insert(weatherEntry);
+
+                    String date2 = d.format(new Date(forcast.getList().get(8).getDt().longValue()*1000));
+                    String desc2 = forcast.getList().get(8).getWeather().get(0).getDescription();
+                    String temp2 = (String.format("%.0f",forcast.getList().get(8).getMain().getTemp().doubleValue())+ "°");
+                    String icon2 = forcast.getList().get(8).getWeather().get(0).getIcon();
+
+                    WeatherEntry weatherEntry2 = new WeatherEntry(date2,desc2,temp2,icon2);
+                    weatherViewModel.insert(weatherEntry2);
+
+                    String date3 = d.format(new Date(forcast.getList().get(16).getDt().longValue()*1000));
+                    String desc3 = forcast.getList().get(16).getWeather().get(0).getDescription();
+                    String temp3 = (String.format("%.0f",forcast.getList().get(16).getMain().getTemp().doubleValue())+ "°");
+                    String icon3 = forcast.getList().get(16).getWeather().get(0).getIcon();
+
+                    WeatherEntry weatherEntry3 = new WeatherEntry(date3,desc3,temp3,icon3);
+                    weatherViewModel.insert(weatherEntry3);
+
+                    String date4 = d.format(new Date(forcast.getList().get(24).getDt().longValue()*1000));
+                    String desc4 = forcast.getList().get(24).getWeather().get(0).getDescription();
+                    String temp4 = (String.format("%.0f",forcast.getList().get(24).getMain().getTemp().doubleValue())+ "°");
+                    String icon4 = forcast.getList().get(24).getWeather().get(0).getIcon();
+
+                    WeatherEntry weatherEntry4 = new WeatherEntry(date4,desc4,temp4,icon4);
+                    weatherViewModel.insert(weatherEntry4);
+
+                    String date5 = d.format(new Date(forcast.getList().get(32).getDt().longValue()*1000));
+                    String desc5 = forcast.getList().get(32).getWeather().get(0).getDescription();
+                    String temp5 = (String.format("%.0f",forcast.getList().get(32).getMain().getTemp().doubleValue())+ "°");
+                    String icon5 = forcast.getList().get(32).getWeather().get(0).getIcon();
+
+                    WeatherEntry weatherEntry5 = new WeatherEntry(date5,desc5,temp5,icon5);
+                    weatherViewModel.insert(weatherEntry5);
+
+                    //String name = forcast.getCity().getName();
+                    //String country = forcast.getCity().getCountry();
+
+                   // Toast.makeText(MainActivity.this,"" + desc ,Toast.LENGTH_LONG).show();
+                }
+
+
+            }
+
+            @Override
+            public void onFailure(Call<ForcastList> call, Throwable t) {
+                Log.d("code1", String.valueOf(t));
+                Toast.makeText(MainActivity.this,"failed",Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+/*
     public void  download(String query){
 
         if (Funtionality.isNetworkAvailable(this)){
@@ -176,6 +290,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
     }
+
 
 
     static class DownloadWeather extends AsyncTask<String,Void, String> {
@@ -228,6 +343,7 @@ public class MainActivity extends AppCompatActivity {
                     String icon22 = desc_d2.getString("icon");
                     //String iconUrl22 = "http://openweathermap.org/img/w/" + icon22 + ".png";
                     //Picasso.get().load(iconUrl22).into(dayimg2);
+
 
                     WeatherEntry weatherEntry2 = new WeatherEntry(daytime2,daydesc2,daytempmax2,icon22);
                     weatherViewModel.insert(weatherEntry2);
@@ -282,6 +398,30 @@ public class MainActivity extends AppCompatActivity {
             } catch (JSONException e) {
                 //Toast.makeText(getContext(), "Error, Check City", Toast.LENGTH_SHORT).show();
             }
+        }
+    }
+    */
+
+    public class MyTimerTask extends TimerTask{
+
+        @Override
+        public void run() {
+            MainActivity.this.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if(viewPager.getCurrentItem()==0){
+                        viewPager.setCurrentItem(1);
+                    }else if(viewPager.getCurrentItem() == 1){
+                        viewPager.setCurrentItem(2);
+                    }else if(viewPager.getCurrentItem() == 2){
+                        viewPager.setCurrentItem(3);
+                    }else if(viewPager.getCurrentItem() == 3){
+                        viewPager.setCurrentItem(4);
+                    }else {
+                        viewPager.setCurrentItem(0);
+                    }
+                }
+            });
         }
     }
 }
